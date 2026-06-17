@@ -57,6 +57,10 @@ namespace config
   constexpr uint32_t HEARTBEAT_INTERVAL_MS = 600000;
   constexpr uint32_t SESSION_IDLE_TIMEOUT_MS = 20000;
   constexpr uint32_t PULSE_DEBOUNCE_US = 5000;
+  constexpr uint32_t INACTIVITY_WARNING_MS = 172800000; // 48 hours
+  constexpr uint32_t ZOOMIES_MAX_DURATION_S = 30;
+  constexpr float ZOOMIES_MIN_MAX_SPEED_KMH = 2.5f;
+  constexpr float ZOOMIES_MIN_DISTANCE_M = 2.0f;
   constexpr size_t MAX_BUFFER_BYTES = 32768;
   constexpr const char *BUFFER_FILE = "/catwheel.lp";
   constexpr const char *SYNC_BUFFER_FILE = "/catwheel-sync.lp";

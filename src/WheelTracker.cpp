@@ -15,10 +15,13 @@ namespace
   float totalRotations = 0.0f;
   float dailyDistanceM = 0.0f;
   float dailyRotations = 0.0f;
+  uint32_t dailyZoomies = 0;
+  float dailyZoomiesIndex = 0.0f;
   float currentSpeedKmh = 0.0f;
   int32_t currentDayKey = -1;
   uint32_t lastSampleMs = 0;
   uint32_t lastHeartbeatMs = 0;
+  uint32_t lastActivityMs = 0;
   bool sessionActive = false;
   uint32_t sessionId = 0;
   uint32_t sessionStartMs = 0;
@@ -53,6 +56,33 @@ namespace
       buffer_store::appendLine(line);
     }
   }
+
+  bool isZoomiesSession(uint32_t durationS)
+  {
+    return durationS > 0 && durationS <= config::ZOOMIES_MAX_DURATION_S &&
+           sessionMaxKmh >= config::ZOOMIES_MIN_MAX_SPEED_KMH &&
+           sessionDistanceM >= config::ZOOMIES_MIN_DISTANCE_M;
+  }
+
+  float zoomiesScore(uint32_t durationS)
+  {
+    const float safeDurationS = static_cast<float>(durationS > 0 ? durationS : 1);
+    return (sessionMaxKmh * sessionDistanceM) / safeDurationS;
+  }
+
+  uint32_t inactivityDurationS(uint32_t nowMs)
+  {
+    if (lastActivityMs == 0)
+    {
+      return 0;
+    }
+    return (nowMs - lastActivityMs) / 1000U;
+  }
+
+  bool inactivityWarningActive(uint32_t nowMs)
+  {
+    return lastActivityMs > 0 && nowMs - lastActivityMs >= config::INACTIVITY_WARNING_MS;
+  }
 } // namespace
 
 namespace wheel_tracker
@@ -82,6 +112,8 @@ namespace wheel_tracker
       currentDayKey = dayKey;
       dailyDistanceM = 0.0f;
       dailyRotations = 0.0f;
+      dailyZoomies = 0;
+      dailyZoomiesIndex = 0.0f;
       Serial.println("Tageszaehler: Neuer lokaler Tag, Tageswerte zurueckgesetzt.");
     }
   }
@@ -116,6 +148,7 @@ namespace wheel_tracker
         sessionMaxKmh = 0.0f;
       }
       sessionLastPulseMs = nowMs;
+      lastActivityMs = nowMs;
       sessionRotations += rotations;
       sessionDistanceM += rotations * config::INNER_CIRCUMFERENCE_M;
       sessionMaxKmh = max(sessionMaxKmh, speedKmh);
@@ -137,6 +170,8 @@ namespace wheel_tracker
       line += ",rotations_total=" + String(totalRotations, 3);
       line += ",daily_distance_m=" + String(dailyDistanceM, 3);
       line += ",daily_rotations=" + String(lroundf(dailyRotations)) + "i";
+      line += ",daily_zoomies=" + String(dailyZoomies) + "i";
+      line += ",daily_zoomies_index=" + String(dailyZoomiesIndex, 3);
       line += ",session_id=" + String(sessionId) + "i";
       line += ",session_active=1i";
       line += ",session_duration_s=" + String(sessionDurationS) + "i";
@@ -157,10 +192,22 @@ namespace wheel_tracker
     if (sessionActive && (nowMs - sessionLastPulseMs >= config::SESSION_IDLE_TIMEOUT_MS))
     {
       const uint32_t sessionDurationS = (sessionLastPulseMs - sessionStartMs) / 1000U;
+      const bool zoomiesSession = isZoomiesSession(sessionDurationS);
+      const float sessionZoomiesScore = zoomiesSession ? zoomiesScore(sessionDurationS) : 0.0f;
+      if (zoomiesSession)
+      {
+        dailyZoomies += 1;
+        dailyZoomiesIndex += sessionZoomiesScore;
+      }
+
       String endLine = "cat_wheel,device=heltec_v3,direction=clockwise ";
       endLine += "session_id=" + String(sessionId) + "i";
       endLine += ",session_active=0i";
       endLine += ",session_ended=1i";
+      endLine += ",zoomies=" + String(zoomiesSession ? 1 : 0) + "i";
+      endLine += ",zoomies_score=" + String(sessionZoomiesScore, 3);
+      endLine += ",daily_zoomies=" + String(dailyZoomies) + "i";
+      endLine += ",daily_zoomies_index=" + String(dailyZoomiesIndex, 3);
       endLine += ",session_duration_s=" + String(sessionDurationS) + "i";
       endLine += ",session_distance_m=" + String(sessionDistanceM, 3);
       endLine += ",session_rotations=" + String(sessionRotations, 3);
@@ -173,9 +220,9 @@ namespace wheel_tracker
       appendTimestampIfKnown(endLine, unixTs);
       bufferLineIfEnabled(endLine);
 
-      Serial.printf("Session Ende: id=%lu dauer=%lus dist=%.2f m max=%.1f km/h\n",
+      Serial.printf("Session Ende: id=%lu dauer=%lus dist=%.2f m max=%.1f km/h zoomies=%s\n",
                     static_cast<unsigned long>(sessionId), static_cast<unsigned long>(sessionDurationS),
-                    sessionDistanceM, sessionMaxKmh);
+                    sessionDistanceM, sessionMaxKmh, zoomiesSession ? "ja" : "nein");
 
       sessionActive = false;
       sessionDistanceM = 0.0f;
@@ -197,6 +244,10 @@ namespace wheel_tracker
     heartbeat += ",distance_total_m=" + String(totalDistanceM, 3);
     heartbeat += ",daily_distance_m=" + String(dailyDistanceM, 3);
     heartbeat += ",daily_rotations=" + String(lroundf(dailyRotations)) + "i";
+    heartbeat += ",daily_zoomies=" + String(dailyZoomies) + "i";
+    heartbeat += ",daily_zoomies_index=" + String(dailyZoomiesIndex, 3);
+    heartbeat += ",inactivity_duration_s=" + String(inactivityDurationS(nowMs)) + "i";
+    heartbeat += ",inactivity_warning=" + String(inactivityWarningActive(nowMs) ? 1 : 0) + "i";
     heartbeat += ",session_active=" + String(sessionActive ? 1 : 0) + "i";
     heartbeat += ",session_id=" + String(sessionId) + "i";
     heartbeat += ",uptime_ms=" + String(nowMs) + "i";

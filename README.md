@@ -45,6 +45,10 @@ Configured constants:
 
 - `MAGNETS_PER_ROTATION = 4`
 - `PULSE_DEBOUNCE_US = 5000`
+- `ZOOMIES_MAX_DURATION_S = 30`
+- `ZOOMIES_MIN_MAX_SPEED_KMH = 2.5`
+- `ZOOMIES_MIN_DISTANCE_M = 2.0`
+- `INACTIVITY_WARNING_MS = 172800000` (48 hours)
 - `INNER_DIAMETER_M = 1.252` (125.2 cm)
 - `OUTER_DIAMETER_M = 1.280` (128.0 cm)
 - direction is fixed as clockwise (`direction=clockwise` tag in telemetry)
@@ -110,7 +114,9 @@ Main fields:
 - `session_id`, `session_active`
 - `session_duration_s`, `session_distance_m`, `session_rotations`, `session_max_kmh`
 - `session_ended` (on end event)
+- `zoomies`, `zoomies_score`, `daily_zoomies`, `daily_zoomies_index`
 - `heartbeat` (idle heartbeat event)
+- `inactivity_duration_s`, `inactivity_warning` (heartbeat events)
 - `uptime_ms`, `unix_ts`
 
 When NTP time is available, the Unix timestamp is also appended as the actual Influx point timestamp. This keeps offline-buffered data on the real event time instead of the later upload time.
@@ -120,6 +126,16 @@ When NTP time is available, the Unix timestamp is also appended as the actual In
 - Session starts when pulses are detected after idle.
 - Session ends after `SESSION_IDLE_TIMEOUT_MS` without pulses.
 - Session state is included in moving and heartbeat points.
+
+## Zoomies / Inactivity
+
+- A session is marked as `zoomies=1i` when it is short, fast, and has enough distance to avoid counting noise.
+- The default thresholds are max 30 seconds, at least 2.5 km/h max speed, and at least 2.0 m distance.
+- `zoomies_score` is calculated from session max speed, session distance, and duration.
+- `daily_zoomies` counts detected zoomies sessions for the local day.
+- `daily_zoomies_index` accumulates the daily zoomies score.
+- Heartbeats include `inactivity_duration_s` and `inactivity_warning`.
+- `inactivity_warning=1i` after 48 hours without real wheel activity by default.
 
 ## Buffering / Sync Behavior
 
@@ -139,6 +155,15 @@ Start with InfluxDB UI or Grafana:
 - Session duration/distance/max speed
 - Activity by hour of day
 - 7-day trend and best day
+- Zoomies index for short, intense burst sessions
+- Inactivity warning if the wheel has not been used for a configured time window
+
+## Todo / Ideas
+
+- Optional future sensor ideas:
+  - second Hall sensor for real direction detection and better pulse validation
+  - load cell to distinguish real cat activity from accidental wheel movement
+  - RFID/BLE/camera-based cat identification if multiple cats ever use the wheel
 
 ## Notes
 
