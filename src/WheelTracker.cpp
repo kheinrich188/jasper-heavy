@@ -183,7 +183,7 @@ namespace wheel_tracker
       appendTimestampIfKnown(line, unixTs);
       bufferLineIfEnabled(line);
 
-      Serial.printf("Sample: pulses=%lu rpm=%.2f speed=%.1f km/h session=%lu/%lus total=%.2f m ts=%lu\n",
+      Serial.printf("Debug: pulses=%lu rpm=%.2f speed=%.1f km/h session=%lu/%lus total=%.2f m ts=%lu\n",
                     static_cast<unsigned long>(pulses), rpm, speedKmh, static_cast<unsigned long>(sessionId),
                     static_cast<unsigned long>(sessionDurationS), totalDistanceM, static_cast<unsigned long>(unixTs));
       return;
@@ -232,7 +232,7 @@ namespace wheel_tracker
 
     if (nowMs - lastHeartbeatMs < config::HEARTBEAT_INTERVAL_MS)
     {
-      Serial.printf("Sample: idle speed=%.1f km/h total=%.2f m ts=%lu\n", speedKmh, totalDistanceM,
+      Serial.printf("Debug: idle speed=%.1f km/h total=%.2f m ts=%lu\n", speedKmh, totalDistanceM,
                     static_cast<unsigned long>(unixTs));
       return;
     }
@@ -255,7 +255,7 @@ namespace wheel_tracker
     appendTimestampIfKnown(heartbeat, unixTs);
     bufferLineIfEnabled(heartbeat);
 
-    Serial.printf("Sample: heartbeat speed=%.1f km/h total=%.2f m ts=%lu\n", speedKmh, totalDistanceM,
+    Serial.printf("Debug: heartbeat speed=%.1f km/h total=%.2f m ts=%lu\n", speedKmh, totalDistanceM,
                   static_cast<unsigned long>(unixTs));
   }
 

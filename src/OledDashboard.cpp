@@ -115,7 +115,7 @@ namespace oled_dashboard
     displayReady = false;
   }
 
-  void update(float currentSpeedKmh, float dailyDistanceM, float dailyRotations)
+  void update(float currentSpeedKmh, float dailyDistanceM, float dailyRotations, bool online)
   {
     if (!displayReady)
     {
@@ -158,6 +158,13 @@ namespace oled_dashboard
     display.setTextSize(1);
     display.setCursor(0, 54);
     display.println("m");
+
+    const char *status = online ? "ON" : "OFF";
+    display.setTextSize(1);
+    display.getTextBounds(status, 0, 0, &x1, &y1, &w, &h);
+    const int statusX = static_cast<int>(display.width()) - static_cast<int>(w) - 2;
+    display.setCursor(statusX, 56);
+    display.print(status);
 
     display.display();
   }

@@ -57,6 +57,11 @@ namespace wifi_time
     return timeInitialized;
   }
 
+  bool online()
+  {
+    return WiFi.status() == WL_CONNECTED;
+  }
+
   int32_t localDayKey(time_t unixTs)
   {
     if (unixTs < 1700000000)

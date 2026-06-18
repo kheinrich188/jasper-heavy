@@ -23,6 +23,7 @@ Firmware for a **Heltec WiFi LoRa 32 V3 (ESP32-S3)** that tracks cat wheel activ
 - OLED dashboard:
   - left: current speed + daily meters
   - right: large daily rotations
+  - bottom-right: WiFi online/offline state
 - Offline-first sync:
   - local SPIFFS buffering
   - sync snapshot file so uploads do not erase newly collected samples

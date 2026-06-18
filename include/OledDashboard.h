@@ -3,5 +3,5 @@
 namespace oled_dashboard
 {
   void begin();
-  void update(float currentSpeedKmh, float dailyDistanceM, float dailyRotations);
+  void update(float currentSpeedKmh, float dailyDistanceM, float dailyRotations, bool online);
 }

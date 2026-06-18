@@ -23,9 +23,8 @@ def parse_env_file(env_path: Path) -> dict:
     return values
 
 
-def to_build_flag(value: str) -> str:
-    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
-    return f'\\"{escaped}\\"'
+def to_build_define(value: str) -> str:
+    return env.StringifyMacro(value)
 
 
 project_dir = Path(env["PROJECT_DIR"])
@@ -43,4 +42,4 @@ mapping = {
 
 for env_key, define_name in mapping.items():
     value = env_values.get(env_key, "")
-    env.Append(BUILD_FLAGS=[f"-D{define_name}={to_build_flag(value)}"])
+    env.Append(CPPDEFINES=[(define_name, to_build_define(value))])

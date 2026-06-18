@@ -135,7 +135,7 @@ void loop()
   {
     lastDisplayMs = nowMs;
     const wheel_tracker::DashboardState state = wheel_tracker::dashboardState();
-    oled_dashboard::update(state.currentSpeedKmh, state.dailyDistanceM, state.dailyRotations);
+    oled_dashboard::update(state.currentSpeedKmh, state.dailyDistanceM, state.dailyRotations, wifi_time::online());
   }
 
   if (nowMs - lastSyncMs >= config::SYNC_INTERVAL_MS)
