@@ -7,6 +7,7 @@
 namespace
 {
   uint32_t lastWifiAttemptMs = 0;
+  uint32_t lastTimeSyncAttemptMs = 0;
   bool timeInitialized = false;
 } // namespace
 
@@ -28,6 +29,7 @@ namespace wifi_time
 
     Serial.printf("WiFi: Verbinde mit SSID '%s'...\n", config::WIFI_SSID);
     WiFi.mode(WIFI_STA);
+    WiFi.setSleep(true);
     WiFi.begin(config::WIFI_SSID, config::WIFI_PASSWORD);
   }
 
@@ -37,6 +39,13 @@ namespace wifi_time
     {
       return;
     }
+
+    const uint32_t nowMs = millis();
+    if (lastTimeSyncAttemptMs != 0 && nowMs - lastTimeSyncAttemptMs < config::TIME_SYNC_RETRY_INTERVAL_MS)
+    {
+      return;
+    }
+    lastTimeSyncAttemptMs = nowMs;
 
     configTzTime(config::TIMEZONE, "pool.ntp.org", "time.nist.gov");
     time_t now = time(nullptr);

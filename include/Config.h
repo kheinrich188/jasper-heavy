@@ -31,10 +31,8 @@ namespace config
   constexpr const char *WIFI_SSID = CAT_WHEEL_WIFI_SSID;
   constexpr const char *WIFI_PASSWORD = CAT_WHEEL_WIFI_PASSWORD;
 
-  // Heltec V3: Bitte im V3.2 Pinmap pruefen, ob die Header-Labels 1/2/3 auf diese GPIOs zeigen.
-  constexpr int HALL_SENSOR_PIN = 1;
-  constexpr int ALT_SENSOR_PIN_2 = 2;
-  constexpr int ALT_SENSOR_PIN_3 = 3;
+  // Hall sensor data pin. Sensor VCC/GND are connected separately, OUT goes to GPIO3.
+  constexpr int HALL_SENSOR_PIN = 3;
 
   constexpr float PI_F = 3.14159265f;
   constexpr float INNER_DIAMETER_M = 1.252f;                       // 125.2 cm
@@ -49,14 +47,19 @@ namespace config
   constexpr const char *INFLUX_TOKEN = CAT_WHEEL_INFLUX_TOKEN;
 
   constexpr uint32_t SAMPLE_INTERVAL_MS = 5000;
-  constexpr uint32_t WIFI_RETRY_INTERVAL_MS = 10000;
-  constexpr uint32_t SYNC_INTERVAL_MS = 15000;
-  constexpr uint32_t DISPLAY_INTERVAL_MS = 1000;
+  constexpr uint32_t ACTIVE_SAMPLE_INTERVAL_MS = 1000;
+  constexpr uint32_t WIFI_RETRY_INTERVAL_MS = 30000;
+  constexpr uint32_t TIME_SYNC_RETRY_INTERVAL_MS = 60000;
+  constexpr uint32_t SYNC_INTERVAL_MS = 60000;
+  constexpr uint32_t DISPLAY_INTERVAL_MS = 2000;
+  constexpr uint32_t ACTIVE_DISPLAY_INTERVAL_MS = 250;
+  constexpr uint32_t LOOP_IDLE_DELAY_MS = 25;
+  constexpr bool VERBOSE_SERIAL_LOGS = false;
   constexpr uint32_t HTTP_CONNECT_TIMEOUT_MS = 4000;
   constexpr uint32_t HTTP_RESPONSE_TIMEOUT_MS = 6000;
   constexpr uint32_t HEARTBEAT_INTERVAL_MS = 600000;
   constexpr uint32_t SESSION_IDLE_TIMEOUT_MS = 20000;
-  constexpr uint32_t PULSE_DEBOUNCE_US = 5000;
+  constexpr uint32_t PULSE_DEBOUNCE_US = 50000;
   constexpr uint32_t INACTIVITY_WARNING_MS = 172800000; // 48 hours
   constexpr uint32_t ZOOMIES_MAX_DURATION_S = 30;
   constexpr float ZOOMIES_MIN_MAX_SPEED_KMH = 2.5f;

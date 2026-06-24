@@ -9,6 +9,7 @@ namespace wheel_tracker
     float currentSpeedKmh;
     float dailyDistanceM;
     float dailyRotations;
+    bool sessionActive;
   };
 
   void begin();

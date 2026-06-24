@@ -38,4 +38,12 @@ namespace pulse_counter
     portEXIT_CRITICAL(&pulseMux);
     return pulses;
   }
+
+  uint32_t pending()
+  {
+    portENTER_CRITICAL(&pulseMux);
+    const uint32_t pulses = pulseCount;
+    portEXIT_CRITICAL(&pulseMux);
+    return pulses;
+  }
 } // namespace pulse_counter

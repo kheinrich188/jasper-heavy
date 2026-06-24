@@ -4,6 +4,7 @@
 #include "Config.h"
 #include "InfluxClient.h"
 #include "OledDashboard.h"
+#include "PulseCounter.h"
 #include "WheelTracker.h"
 #include "WifiTime.h"
 
@@ -92,8 +93,7 @@ void setup()
   delay(200);
 
   Serial.println("Cat Wheel Tracker startet...");
-  Serial.printf("Sensor-Pins Kandidaten: %d / %d / %d\n", config::HALL_SENSOR_PIN, config::ALT_SENSOR_PIN_2,
-                config::ALT_SENSOR_PIN_3);
+  Serial.printf("Hall-Sensor OUT an GPIO%d\n", config::HALL_SENSOR_PIN);
   Serial.printf("Umfang innen=%.3f m, aussen=%.3f m\n", config::INNER_CIRCUMFERENCE_M,
                 config::OUTER_CIRCUMFERENCE_M);
 
@@ -125,17 +125,24 @@ void loop()
   wheel_tracker::updateDailyBoundary();
 
   const uint32_t nowMs = millis();
-  if (nowMs - lastSampleMs >= config::SAMPLE_INTERVAL_MS)
+  const bool pendingPulses = pulse_counter::pending() > 0;
+  const wheel_tracker::DashboardState state = wheel_tracker::dashboardState();
+  const bool activeDisplay = state.sessionActive || pendingPulses;
+  const uint32_t sampleIntervalMs = activeDisplay ? config::ACTIVE_SAMPLE_INTERVAL_MS : config::SAMPLE_INTERVAL_MS;
+  const uint32_t displayIntervalMs = activeDisplay ? config::ACTIVE_DISPLAY_INTERVAL_MS : config::DISPLAY_INTERVAL_MS;
+
+  if (nowMs - lastSampleMs >= sampleIntervalMs)
   {
     lastSampleMs = nowMs;
     wheel_tracker::collectAndBufferSample(nowMs);
   }
 
-  if (nowMs - lastDisplayMs >= config::DISPLAY_INTERVAL_MS)
+  if (nowMs - lastDisplayMs >= displayIntervalMs)
   {
     lastDisplayMs = nowMs;
-    const wheel_tracker::DashboardState state = wheel_tracker::dashboardState();
-    oled_dashboard::update(state.currentSpeedKmh, state.dailyDistanceM, state.dailyRotations, wifi_time::online());
+    const wheel_tracker::DashboardState updatedState = wheel_tracker::dashboardState();
+    oled_dashboard::update(updatedState.currentSpeedKmh, updatedState.dailyDistanceM, updatedState.dailyRotations,
+                           wifi_time::online());
   }
 
   if (nowMs - lastSyncMs >= config::SYNC_INTERVAL_MS)
@@ -158,4 +165,6 @@ void loop()
       }
     }
   }
+
+  delay(config::LOOP_IDLE_DELAY_MS);
 }

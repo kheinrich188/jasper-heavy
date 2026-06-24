@@ -55,6 +55,29 @@ namespace
     }
     return !line.endsWith("=");
   }
+
+  String normalizeBufferedLine(String line)
+  {
+    int fieldIndex = line.indexOf("daily_rotations=");
+    if (fieldIndex < 0)
+    {
+      return line;
+    }
+
+    const int valueStart = fieldIndex + strlen("daily_rotations=");
+    int valueEnd = valueStart;
+    while (valueEnd < line.length() && line[valueEnd] != ',' && line[valueEnd] != ' ')
+    {
+      valueEnd++;
+    }
+
+    if (valueEnd > valueStart && line[valueEnd - 1] == 'i')
+    {
+      line.remove(valueEnd - 1, 1);
+      line = line.substring(0, valueEnd - 1) + ".0" + line.substring(valueEnd - 1);
+    }
+    return line;
+  }
 } // namespace
 
 namespace influx_client
@@ -81,6 +104,7 @@ namespace influx_client
       line.trim();
       if (line.length() > 0)
       {
+        line = normalizeBufferedLine(line);
         if (isValidBufferedLine(line))
         {
           clean += line;

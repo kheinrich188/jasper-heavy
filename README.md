@@ -38,14 +38,26 @@ Firmware for a **Heltec WiFi LoRa 32 V3 (ESP32-S3)** that tracks cat wheel activ
 
 - Heltec WiFi LoRa 32 V3
 - Hall sensor (A3144 / 3144E type)
-- 4 magnets on the wheel
+  - VCC/GND to board power
+  - OUT/data pin to `GPIO3`
+- 4 magnets on the wheel, one every 90 degrees
 - Cat wheel: elmato Katzenlaufrad, size 140  
   https://www.elmato.de/collections/katzenlaufrad
 
 Configured constants:
 
+- `HALL_SENSOR_PIN = 3`
 - `MAGNETS_PER_ROTATION = 4`
-- `PULSE_DEBOUNCE_US = 5000`
+- `PULSE_DEBOUNCE_US = 50000`
+- `SAMPLE_INTERVAL_MS = 5000`
+- `ACTIVE_SAMPLE_INTERVAL_MS = 1000`
+- `DISPLAY_INTERVAL_MS = 2000`
+- `ACTIVE_DISPLAY_INTERVAL_MS = 250`
+- `SYNC_INTERVAL_MS = 60000`
+- `WIFI_RETRY_INTERVAL_MS = 30000`
+- `TIME_SYNC_RETRY_INTERVAL_MS = 60000`
+- `LOOP_IDLE_DELAY_MS = 25`
+- `VERBOSE_SERIAL_LOGS = false`
 - `ZOOMIES_MAX_DURATION_S = 30`
 - `ZOOMIES_MIN_MAX_SPEED_KMH = 2.5`
 - `ZOOMIES_MIN_DISTANCE_M = 2.0`
@@ -111,7 +123,7 @@ Main fields:
 - `pulses`, `rotations`, `rpm`
 - `speed_kmh`
 - `distance_total_m`, `rotations_total`
-- `daily_distance_m`, `daily_rotations`
+- `daily_distance_m`, `daily_rotations` (float)
 - `session_id`, `session_active`
 - `session_duration_s`, `session_distance_m`, `session_rotations`, `session_max_kmh`
 - `session_ended` (on end event)
@@ -127,6 +139,8 @@ When NTP time is available, the Unix timestamp is also appended as the actual In
 - Session starts when pulses are detected after idle.
 - Session ends after `SESSION_IDLE_TIMEOUT_MS` without pulses.
 - Session state is included in moving and heartbeat points.
+- Daily distance counts every magnet pulse as a quarter turn.
+- Daily rotations count only completed 4-magnet rounds and reset their partial-round phase at the start of each new session.
 
 ## Zoomies / Inactivity
 

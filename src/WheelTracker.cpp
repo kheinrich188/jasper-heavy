@@ -19,6 +19,7 @@ namespace
   float dailyZoomiesIndex = 0.0f;
   float currentSpeedKmh = 0.0f;
   int32_t currentDayKey = -1;
+  time_t nextDailyResetTs = 0;
   uint32_t lastSampleMs = 0;
   uint32_t lastHeartbeatMs = 0;
   uint32_t lastActivityMs = 0;
@@ -26,6 +27,7 @@ namespace
   uint32_t sessionId = 0;
   uint32_t sessionStartMs = 0;
   uint32_t sessionLastPulseMs = 0;
+  uint32_t sessionPulseCount = 0;
   float sessionDistanceM = 0.0f;
   float sessionRotations = 0.0f;
   float sessionMaxKmh = 0.0f;
@@ -83,6 +85,33 @@ namespace
   {
     return lastActivityMs > 0 && nowMs - lastActivityMs >= config::INACTIVITY_WARNING_MS;
   }
+
+  time_t nextLocalMidnight(time_t unixTs)
+  {
+    struct tm localTime;
+    localtime_r(&unixTs, &localTime);
+    localTime.tm_hour = 0;
+    localTime.tm_min = 0;
+    localTime.tm_sec = 0;
+    localTime.tm_mday += 1;
+    localTime.tm_isdst = -1;
+    return mktime(&localTime);
+  }
+
+  void resetDailyCounters()
+  {
+    dailyDistanceM = 0.0f;
+    dailyRotations = 0.0f;
+    dailyZoomies = 0;
+    dailyZoomiesIndex = 0.0f;
+    sessionPulseCount = 0;
+  }
+
+  void updateDailySchedule(time_t unixTs)
+  {
+    currentDayKey = wifi_time::localDayKey(unixTs);
+    nextDailyResetTs = nextLocalMidnight(unixTs);
+  }
 } // namespace
 
 namespace wheel_tracker
@@ -95,7 +124,8 @@ namespace wheel_tracker
 
   void updateDailyBoundary()
   {
-    const int32_t dayKey = wifi_time::localDayKey(time(nullptr));
+    const time_t now = time(nullptr);
+    const int32_t dayKey = wifi_time::localDayKey(now);
     if (dayKey < 0)
     {
       return;
@@ -103,17 +133,14 @@ namespace wheel_tracker
 
     if (currentDayKey < 0)
     {
-      currentDayKey = dayKey;
+      updateDailySchedule(now);
       return;
     }
 
-    if (dayKey != currentDayKey)
+    if (dayKey != currentDayKey || (nextDailyResetTs > 0 && now >= nextDailyResetTs))
     {
-      currentDayKey = dayKey;
-      dailyDistanceM = 0.0f;
-      dailyRotations = 0.0f;
-      dailyZoomies = 0;
-      dailyZoomiesIndex = 0.0f;
+      resetDailyCounters();
+      updateDailySchedule(now);
       Serial.println("Tageszaehler: Neuer lokaler Tag, Tageswerte zurueckgesetzt.");
     }
   }
@@ -143,6 +170,7 @@ namespace wheel_tracker
         sessionActive = true;
         sessionId += 1;
         sessionStartMs = nowMs;
+        sessionPulseCount = 0;
         sessionDistanceM = 0.0f;
         sessionRotations = 0.0f;
         sessionMaxKmh = 0.0f;
@@ -155,9 +183,14 @@ namespace wheel_tracker
 
       lastHeartbeatMs = nowMs;
 
+      const uint32_t completedRotationsBefore = sessionPulseCount / config::MAGNETS_PER_ROTATION;
+      sessionPulseCount += pulses;
+      const uint32_t completedRotationsAfter = sessionPulseCount / config::MAGNETS_PER_ROTATION;
+      const uint32_t completedRotations = completedRotationsAfter - completedRotationsBefore;
+
       totalRotations += rotations;
       totalDistanceM += rotations * config::INNER_CIRCUMFERENCE_M;
-      dailyRotations += rotations;
+      dailyRotations += static_cast<float>(completedRotations);
       dailyDistanceM += rotations * config::INNER_CIRCUMFERENCE_M;
 
       const uint32_t sessionDurationS = (nowMs - sessionStartMs) / 1000U;
@@ -169,7 +202,7 @@ namespace wheel_tracker
       line += ",distance_total_m=" + String(totalDistanceM, 3);
       line += ",rotations_total=" + String(totalRotations, 3);
       line += ",daily_distance_m=" + String(dailyDistanceM, 3);
-      line += ",daily_rotations=" + String(lroundf(dailyRotations)) + "i";
+      line += ",daily_rotations=" + String(dailyRotations, 3);
       line += ",daily_zoomies=" + String(dailyZoomies) + "i";
       line += ",daily_zoomies_index=" + String(dailyZoomiesIndex, 3);
       line += ",session_id=" + String(sessionId) + "i";
@@ -183,9 +216,12 @@ namespace wheel_tracker
       appendTimestampIfKnown(line, unixTs);
       bufferLineIfEnabled(line);
 
-      Serial.printf("Debug: pulses=%lu rpm=%.2f speed=%.1f km/h session=%lu/%lus total=%.2f m ts=%lu\n",
-                    static_cast<unsigned long>(pulses), rpm, speedKmh, static_cast<unsigned long>(sessionId),
-                    static_cast<unsigned long>(sessionDurationS), totalDistanceM, static_cast<unsigned long>(unixTs));
+      if (config::VERBOSE_SERIAL_LOGS)
+      {
+        Serial.printf("Sample: pulses=%lu rpm=%.2f speed=%.1f km/h session=%lu/%lus total=%.2f m ts=%lu\n",
+                      static_cast<unsigned long>(pulses), rpm, speedKmh, static_cast<unsigned long>(sessionId),
+                      static_cast<unsigned long>(sessionDurationS), totalDistanceM, static_cast<unsigned long>(unixTs));
+      }
       return;
     }
 
@@ -213,16 +249,19 @@ namespace wheel_tracker
       endLine += ",session_rotations=" + String(sessionRotations, 3);
       endLine += ",session_max_kmh=" + String(sessionMaxKmh, 2);
       endLine += ",daily_distance_m=" + String(dailyDistanceM, 3);
-      endLine += ",daily_rotations=" + String(lroundf(dailyRotations)) + "i";
+      endLine += ",daily_rotations=" + String(dailyRotations, 3);
       endLine += ",distance_total_m=" + String(totalDistanceM, 3);
       endLine += ",uptime_ms=" + String(nowMs) + "i";
       endLine += ",unix_ts=" + String(static_cast<unsigned long>(unixTs)) + "i";
       appendTimestampIfKnown(endLine, unixTs);
       bufferLineIfEnabled(endLine);
 
-      Serial.printf("Session Ende: id=%lu dauer=%lus dist=%.2f m max=%.1f km/h zoomies=%s\n",
-                    static_cast<unsigned long>(sessionId), static_cast<unsigned long>(sessionDurationS),
-                    sessionDistanceM, sessionMaxKmh, zoomiesSession ? "ja" : "nein");
+      if (config::VERBOSE_SERIAL_LOGS)
+      {
+        Serial.printf("Session Ende: id=%lu dauer=%lus dist=%.2f m max=%.1f km/h zoomies=%s\n",
+                      static_cast<unsigned long>(sessionId), static_cast<unsigned long>(sessionDurationS),
+                      sessionDistanceM, sessionMaxKmh, zoomiesSession ? "ja" : "nein");
+      }
 
       sessionActive = false;
       sessionDistanceM = 0.0f;
@@ -232,8 +271,6 @@ namespace wheel_tracker
 
     if (nowMs - lastHeartbeatMs < config::HEARTBEAT_INTERVAL_MS)
     {
-      Serial.printf("Debug: idle speed=%.1f km/h total=%.2f m ts=%lu\n", speedKmh, totalDistanceM,
-                    static_cast<unsigned long>(unixTs));
       return;
     }
 
@@ -243,7 +280,7 @@ namespace wheel_tracker
     heartbeat += ",speed_kmh=" + String(speedKmh, 2);
     heartbeat += ",distance_total_m=" + String(totalDistanceM, 3);
     heartbeat += ",daily_distance_m=" + String(dailyDistanceM, 3);
-    heartbeat += ",daily_rotations=" + String(lroundf(dailyRotations)) + "i";
+    heartbeat += ",daily_rotations=" + String(dailyRotations, 3);
     heartbeat += ",daily_zoomies=" + String(dailyZoomies) + "i";
     heartbeat += ",daily_zoomies_index=" + String(dailyZoomiesIndex, 3);
     heartbeat += ",inactivity_duration_s=" + String(inactivityDurationS(nowMs)) + "i";
@@ -255,8 +292,11 @@ namespace wheel_tracker
     appendTimestampIfKnown(heartbeat, unixTs);
     bufferLineIfEnabled(heartbeat);
 
-    Serial.printf("Debug: heartbeat speed=%.1f km/h total=%.2f m ts=%lu\n", speedKmh, totalDistanceM,
-                  static_cast<unsigned long>(unixTs));
+    if (config::VERBOSE_SERIAL_LOGS)
+    {
+      Serial.printf("Sample: heartbeat speed=%.1f km/h total=%.2f m ts=%lu\n", speedKmh, totalDistanceM,
+                    static_cast<unsigned long>(unixTs));
+    }
   }
 
   DashboardState dashboardState()
@@ -265,6 +305,7 @@ namespace wheel_tracker
         currentSpeedKmh,
         dailyDistanceM,
         dailyRotations,
+        sessionActive,
     };
   }
 } // namespace wheel_tracker
