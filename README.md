@@ -48,7 +48,9 @@ Configured constants:
 
 - `HALL_SENSOR_PIN = 3`
 - `MAGNETS_PER_ROTATION = 4`
-- `PULSE_DEBOUNCE_US = 50000`
+- `PULSE_DEBOUNCE_US = 100000`
+- `MIN_SESSION_DURATION_MS = 10000`
+- `MIN_SESSION_PULSES = 4`
 - `SAMPLE_INTERVAL_MS = 5000`
 - `ACTIVE_SAMPLE_INTERVAL_MS = 1000`
 - `DISPLAY_INTERVAL_MS = 2000`
@@ -137,10 +139,12 @@ When NTP time is available, the Unix timestamp is also appended as the actual In
 ## Session Logic
 
 - Session starts when pulses are detected after idle.
+- A detected session is confirmed only after at least `MIN_SESSION_DURATION_MS` and `MIN_SESSION_PULSES`.
+- Shorter candidate sessions are discarded and do not affect daily totals or Influx telemetry.
 - Session ends after `SESSION_IDLE_TIMEOUT_MS` without pulses.
 - Session state is included in moving and heartbeat points.
-- Daily distance counts every magnet pulse as a quarter turn.
-- Daily rotations count only completed 4-magnet rounds and reset their partial-round phase at the start of each new session.
+- Daily distance counts every confirmed-session magnet pulse as a quarter turn.
+- Daily rotations count only completed 4-magnet rounds and reset their partial-round phase at the start of each new confirmed session.
 
 ## Zoomies / Inactivity
 

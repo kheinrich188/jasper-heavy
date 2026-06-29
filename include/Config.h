@@ -59,7 +59,9 @@ namespace config
   constexpr uint32_t HTTP_RESPONSE_TIMEOUT_MS = 6000;
   constexpr uint32_t HEARTBEAT_INTERVAL_MS = 600000;
   constexpr uint32_t SESSION_IDLE_TIMEOUT_MS = 20000;
-  constexpr uint32_t PULSE_DEBOUNCE_US = 50000;
+  constexpr uint32_t MIN_SESSION_DURATION_MS = 10000;
+  constexpr uint32_t MIN_SESSION_PULSES = MAGNETS_PER_ROTATION;
+  constexpr uint32_t PULSE_DEBOUNCE_US = 100000;
   constexpr uint32_t INACTIVITY_WARNING_MS = 172800000; // 48 hours
   constexpr uint32_t ZOOMIES_MAX_DURATION_S = 30;
   constexpr float ZOOMIES_MIN_MAX_SPEED_KMH = 2.5f;

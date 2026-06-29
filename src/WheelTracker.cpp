@@ -24,6 +24,7 @@ namespace
   uint32_t lastHeartbeatMs = 0;
   uint32_t lastActivityMs = 0;
   bool sessionActive = false;
+  bool sessionConfirmed = false;
   uint32_t sessionId = 0;
   uint32_t sessionStartMs = 0;
   uint32_t sessionLastPulseMs = 0;
@@ -112,6 +113,24 @@ namespace
     currentDayKey = wifi_time::localDayKey(unixTs);
     nextDailyResetTs = nextLocalMidnight(unixTs);
   }
+
+  void resetSession()
+  {
+    sessionActive = false;
+    sessionConfirmed = false;
+    sessionStartMs = 0;
+    sessionLastPulseMs = 0;
+    sessionPulseCount = 0;
+    sessionDistanceM = 0.0f;
+    sessionRotations = 0.0f;
+    sessionMaxKmh = 0.0f;
+  }
+
+  bool sessionMeetsMinimum(uint32_t nowMs)
+  {
+    return nowMs - sessionStartMs >= config::MIN_SESSION_DURATION_MS &&
+           sessionPulseCount >= config::MIN_SESSION_PULSES;
+  }
 } // namespace
 
 namespace wheel_tracker
@@ -168,7 +187,7 @@ namespace wheel_tracker
       if (!sessionActive)
       {
         sessionActive = true;
-        sessionId += 1;
+        sessionConfirmed = false;
         sessionStartMs = nowMs;
         sessionPulseCount = 0;
         sessionDistanceM = 0.0f;
@@ -176,7 +195,6 @@ namespace wheel_tracker
         sessionMaxKmh = 0.0f;
       }
       sessionLastPulseMs = nowMs;
-      lastActivityMs = nowMs;
       sessionRotations += rotations;
       sessionDistanceM += rotations * config::INNER_CIRCUMFERENCE_M;
       sessionMaxKmh = max(sessionMaxKmh, speedKmh);
@@ -188,15 +206,36 @@ namespace wheel_tracker
       const uint32_t completedRotationsAfter = sessionPulseCount / config::MAGNETS_PER_ROTATION;
       const uint32_t completedRotations = completedRotationsAfter - completedRotationsBefore;
 
-      totalRotations += rotations;
-      totalDistanceM += rotations * config::INNER_CIRCUMFERENCE_M;
-      dailyRotations += static_cast<float>(completedRotations);
-      dailyDistanceM += rotations * config::INNER_CIRCUMFERENCE_M;
+      bool emitSample = sessionConfirmed;
+      uint32_t telemetryPulses = pulses;
+      float telemetryRotations = rotations;
+      uint32_t telemetryCompletedRotations = completedRotations;
+
+      if (!sessionConfirmed && sessionMeetsMinimum(nowMs))
+      {
+        sessionConfirmed = true;
+        sessionId += 1;
+        emitSample = true;
+        telemetryPulses = sessionPulseCount;
+        telemetryRotations = sessionRotations;
+        telemetryCompletedRotations = completedRotationsAfter;
+      }
+
+      if (!emitSample)
+      {
+        return;
+      }
+
+      lastActivityMs = nowMs;
+      totalRotations += telemetryRotations;
+      totalDistanceM += telemetryRotations * config::INNER_CIRCUMFERENCE_M;
+      dailyRotations += static_cast<float>(telemetryCompletedRotations);
+      dailyDistanceM += telemetryRotations * config::INNER_CIRCUMFERENCE_M;
 
       const uint32_t sessionDurationS = (nowMs - sessionStartMs) / 1000U;
       String line = "cat_wheel,device=heltec_v3,direction=clockwise ";
-      line += "pulses=" + String(pulses) + "i";
-      line += ",rotations=" + String(rotations, 4);
+      line += "pulses=" + String(telemetryPulses) + "i";
+      line += ",rotations=" + String(telemetryRotations, 4);
       line += ",rpm=" + String(rpm, 2);
       line += ",speed_kmh=" + String(speedKmh, 2);
       line += ",distance_total_m=" + String(totalDistanceM, 3);
@@ -219,7 +258,7 @@ namespace wheel_tracker
       if (config::VERBOSE_SERIAL_LOGS)
       {
         Serial.printf("Sample: pulses=%lu rpm=%.2f speed=%.1f km/h session=%lu/%lus total=%.2f m ts=%lu\n",
-                      static_cast<unsigned long>(pulses), rpm, speedKmh, static_cast<unsigned long>(sessionId),
+                      static_cast<unsigned long>(telemetryPulses), rpm, speedKmh, static_cast<unsigned long>(sessionId),
                       static_cast<unsigned long>(sessionDurationS), totalDistanceM, static_cast<unsigned long>(unixTs));
       }
       return;
@@ -227,6 +266,18 @@ namespace wheel_tracker
 
     if (sessionActive && (nowMs - sessionLastPulseMs >= config::SESSION_IDLE_TIMEOUT_MS))
     {
+      if (!sessionConfirmed)
+      {
+        if (config::VERBOSE_SERIAL_LOGS)
+        {
+          Serial.printf("Session verworfen: dauer=%lums pulses=%lu\n",
+                        static_cast<unsigned long>(sessionLastPulseMs - sessionStartMs),
+                        static_cast<unsigned long>(sessionPulseCount));
+        }
+        resetSession();
+        return;
+      }
+
       const uint32_t sessionDurationS = (sessionLastPulseMs - sessionStartMs) / 1000U;
       const bool zoomiesSession = isZoomiesSession(sessionDurationS);
       const float sessionZoomiesScore = zoomiesSession ? zoomiesScore(sessionDurationS) : 0.0f;
@@ -263,10 +314,7 @@ namespace wheel_tracker
                       sessionDistanceM, sessionMaxKmh, zoomiesSession ? "ja" : "nein");
       }
 
-      sessionActive = false;
-      sessionDistanceM = 0.0f;
-      sessionRotations = 0.0f;
-      sessionMaxKmh = 0.0f;
+      resetSession();
     }
 
     if (nowMs - lastHeartbeatMs < config::HEARTBEAT_INTERVAL_MS)
@@ -285,7 +333,7 @@ namespace wheel_tracker
     heartbeat += ",daily_zoomies_index=" + String(dailyZoomiesIndex, 3);
     heartbeat += ",inactivity_duration_s=" + String(inactivityDurationS(nowMs)) + "i";
     heartbeat += ",inactivity_warning=" + String(inactivityWarningActive(nowMs) ? 1 : 0) + "i";
-    heartbeat += ",session_active=" + String(sessionActive ? 1 : 0) + "i";
+    heartbeat += ",session_active=" + String(sessionConfirmed ? 1 : 0) + "i";
     heartbeat += ",session_id=" + String(sessionId) + "i";
     heartbeat += ",uptime_ms=" + String(nowMs) + "i";
     heartbeat += ",unix_ts=" + String(static_cast<unsigned long>(unixTs)) + "i";
@@ -305,7 +353,7 @@ namespace wheel_tracker
         currentSpeedKmh,
         dailyDistanceM,
         dailyRotations,
-        sessionActive,
+        sessionConfirmed,
     };
   }
 } // namespace wheel_tracker
